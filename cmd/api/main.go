@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"sync/atomic"
+	"time"
 
 	"github.com/fierceadventurer/Url-Shortner/internal/shortner"
 	"github.com/fierceadventurer/Url-Shortner/internal/store"
@@ -17,7 +18,7 @@ import (
 )
 
 var (
-	counter uint64 = 10000
+	counter uint64
 	db      *store.CloudStore
 	baseURL string
 )
@@ -36,7 +37,7 @@ type ShortenResponse struct {
 // @host localhost:8080
 // @BasePath /
 func main() {
-
+	counter = uint64(time.Now().Unix())
 	if err := godotenv.Load(); err != nil {
 		log.Println("Warning: No .env file found, relying on system environment variables")
 	}
