@@ -1,17 +1,23 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/fierceadventurer/Url-Shortner/internal/shortner"
 	"github.com/fierceadventurer/Url-Shortner/internal/store"
 	"github.com/joho/godotenv"
+	"golang.org/x/time/rate"
 
 	_ "github.com/fierceadventurer/Url-Shortner/docs"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -29,6 +35,39 @@ type ShortenRequest struct {
 
 type ShortenResponse struct {
 	ShortURL string `json:"short_url" example:"http://localhost:8080/abc123"`
+}
+
+var visitors = make(map[string]*rate.Limiter)
+var mu sync.Mutex
+
+func getVisitor(ip string) *rate.Limiter {
+	mu.Lock()
+	defer mu.Unlock()
+
+	limiter, exists := visitors[ip]
+	if !exists {
+		limiter = rate.NewLimiter(1, 5) // 1 request per second with a burst of 5
+		visitors[ip] = limiter
+	}
+
+	return limiter
+}
+
+func rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ip, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		limiter := getVisitor(ip)
+		if !limiter.Allow() {
+			http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
 }
 
 // @title URL Shortener API
@@ -63,15 +102,40 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /shorten", handleShorten)
+	mux.HandleFunc("POST /shorten", rateLimitMiddleware(handleShorten))
 	mux.HandleFunc("GET /{code}", handleRedirect)
 	mux.HandleFunc("GET /swagger/", httpSwagger.WrapHandler)
 
-	fmt.Println("Server listening on :8080")
-	fmt.Println("Swagger UI available at: http://localhost:8080/swagger/index.html")
-	if err := http.ListenAndServe(":8080", mux); err != nil {
-		log.Fatal(err)
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: mux,
 	}
+
+	go func() {
+		fmt.Println("Server listening on :8080")
+		fmt.Println("Swagger UI available at: http://localhost:8080/swagger/index.html")
+		if err := http.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Listen error: %v\n", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
+	}
+
+	if err := db.Close(); err != nil {
+		log.Printf("Error closing database: %v", err)
+	}
+
+	log.Println("Server exiting")
 }
 
 // handleShorten shortens a given URL
@@ -121,6 +185,12 @@ func handleRedirect(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+
+	go func() {
+		if err := db.IncrementClick(code); err != nil {
+			log.Printf("Failed to increment click count for code %s: %v", code, err)
+		}
+	}()
 
 	http.Redirect(w, r, originalURL, http.StatusMovedPermanently)
 }

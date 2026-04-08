@@ -13,6 +13,8 @@ import (
 type URLStore interface {
 	Save(shortCode string, originalUrl string) error
 	Get(shortCode string) (string, error)
+	IncrementClick(shortCode string) error
+	Close() error
 }
 
 type CloudStore struct {
@@ -40,6 +42,13 @@ func NewCloudStore(dbURL string, redisURL string) (*CloudStore, error) {
 	rdb := redis.NewClient(opt)
 
 	return &CloudStore{db: db, rdb: rdb}, nil
+}
+
+func (s *CloudStore) Close() error {
+	if err := s.db.Close(); err != nil {
+		return err
+	}
+	return s.rdb.Close()
 }
 
 func (s *CloudStore) Save(shortCode string, originalUrl string) error {
@@ -85,4 +94,10 @@ func (s *CloudStore) Get(shortCode string) (string, error) {
 	}
 
 	return url, nil
+}
+
+func (s *CloudStore) IncrementClick(shortCode string) error {
+	query := `UPDATE urls SET clicks = clicks + 1 WHERE short_code = $1`
+	_, err := s.db.Exec(query, shortCode)
+	return err
 }
