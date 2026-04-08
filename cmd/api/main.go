@@ -83,7 +83,7 @@ func main() {
 
 	dbURL := os.Getenv("DATABASE_URL")
 	redisURL := os.Getenv("REDIS_URL")
-	baseURL := os.Getenv("BASE_URL")
+	baseURL = os.Getenv("BASE_URL")
 
 	if dbURL == "" || redisURL == "" {
 		log.Fatal("DATABASE_URL and REDIS_URL must be set")
@@ -102,13 +102,13 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /shorten", enableCORS(rateLimitMiddleware(handleShorten)))
+	mux.HandleFunc("POST /shorten", rateLimitMiddleware(handleShorten))
 	mux.HandleFunc("GET /{code}", handleRedirect)
 	mux.HandleFunc("GET /swagger/", httpSwagger.WrapHandler)
 
 	srv := &http.Server{
 		Addr:    ":8080",
-		Handler: mux,
+		Handler: enableCORS(mux),
 	}
 
 	go func() {
@@ -195,17 +195,16 @@ func handleRedirect(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, originalURL, http.StatusMovedPermanently)
 }
 
-func enableCORS(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func enableCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
 
-		next(w, r)
-	}
+		next.ServeHTTP(w, r)
+	})
 }
