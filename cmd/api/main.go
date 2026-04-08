@@ -102,7 +102,7 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /shorten", rateLimitMiddleware(handleShorten))
+	mux.HandleFunc("POST /shorten", enableCORS(rateLimitMiddleware(handleShorten)))
 	mux.HandleFunc("GET /{code}", handleRedirect)
 	mux.HandleFunc("GET /swagger/", httpSwagger.WrapHandler)
 
@@ -193,4 +193,19 @@ func handleRedirect(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	http.Redirect(w, r, originalURL, http.StatusMovedPermanently)
+}
+
+func enableCORS(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next(w, r)
+	}
 }
