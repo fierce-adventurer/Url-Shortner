@@ -114,7 +114,7 @@ func main() {
 	go func() {
 		fmt.Println("Server listening on :8080")
 		fmt.Println("Swagger UI available at: http://localhost:8080/swagger/index.html")
-		if err := http.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Listen error: %v\n", err)
 		}
 	}()
