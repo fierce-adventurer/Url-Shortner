@@ -83,7 +83,7 @@ func main() {
 
 	dbURL := os.Getenv("DATABASE_URL")
 	redisURL := os.Getenv("REDIS_URL")
-	baseURL = os.Getenv("BASE_URL")
+	baseURL := os.Getenv("BASE_URL")
 
 	if dbURL == "" || redisURL == "" {
 		log.Fatal("DATABASE_URL and REDIS_URL must be set")
@@ -113,7 +113,7 @@ func main() {
 
 	go func() {
 		fmt.Println("Server listening on :8080")
-		fmt.Println("Swagger UI available at: http://localhost:8080/swagger/index.html")
+		fmt.Printf("Swagger UI available at: %s/swagger/index.html\n", baseURL)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Listen error: %v\n", err)
 		}
