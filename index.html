@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shortit - Make URLs Manageable</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    
+    <style>
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .main-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+        }
+        .shortener-card {
+            border-radius: 1rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease;
+        }
+        [data-bs-theme="dark"] .shortener-card {
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .brand-text {
+            font-weight: 800;
+            letter-spacing: -1px;
+            background: linear-gradient(45deg, #0d6efd, #0dcaf0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        #result-container {
+            display: none; /* Hidden until a link is shortened */
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg py-3">
+        <div class="container">
+            <a class="navbar-brand fs-3 brand-text" href="#"><i class="fa-solid fa-link me-2"></i>Shortit</a>
+            <button class="btn btn-outline-secondary rounded-circle" id="theme-toggle" title="Toggle Theme">
+                <i class="fa-solid fa-sun" id="theme-icon"></i>
+            </button>
+        </div>
+    </nav>
+
+    <main class="main-container">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-md-8 col-lg-6">
+                    <div class="card shortener-card p-4 p-md-5 bg-body-tertiary">
+                        <div class="card-body text-center">
+                            <h1 class="h2 mb-3 fw-bold">Shorten Your Links</h1>
+                            <p class="text-muted mb-4">Paste your long, messy URL below to create a clean, shareable Shortit link.</p>
+                            
+                            <form id="shorten-form">
+                                <div class="input-group input-group-lg mb-3">
+                                    <input type="url" class="form-control" id="url-input" placeholder="https://example.com/very/long/path" required>
+                                    <button class="btn btn-primary px-4" type="submit" id="submit-btn">
+                                        Shorten <i class="fa-solid fa-arrow-right ms-1"></i>
+                                    </button>
+                                </div>
+                            </form>
+
+                            <div class="spinner-border text-primary my-3 d-none" id="loading-spinner" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+
+                            <div class="alert alert-danger d-none mt-3" id="error-msg" role="alert"></div>
+
+                            <div id="result-container" class="mt-4 p-3 border rounded bg-body">
+                                <p class="text-muted small mb-1 text-start">Your short link is ready:</p>
+                                <div class="input-group">
+                                    <input type="text" class="form-control bg-transparent fw-bold text-primary" id="short-url-result" readonly>
+                                    <button class="btn btn-outline-primary" id="copy-btn" title="Copy to clipboard">
+                                        <i class="fa-regular fa-copy"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="py-4 text-center text-muted">
+        <div class="container">
+            <small>&copy; 2026 Shortit. Built with Vanilla Go & Bootstrap.</small>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // --- Theme Toggle Logic ---
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+        const htmlElement = document.documentElement;
+
+        themeToggleBtn.addEventListener('click', () => {
+            const currentTheme = htmlElement.getAttribute('data-bs-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            htmlElement.setAttribute('data-bs-theme', newTheme);
+            
+            // Swap icons
+            if (newTheme === 'dark') {
+                themeIcon.classList.remove('fa-moon');
+                themeIcon.classList.add('fa-sun');
+            } else {
+                themeIcon.classList.remove('fa-sun');
+                themeIcon.classList.add('fa-moon');
+            }
+        });
+
+        // --- API Interaction Logic ---
+        const form = document.getElementById('shorten-form');
+        const urlInput = document.getElementById('url-input');
+        const submitBtn = document.getElementById('submit-btn');
+        const spinner = document.getElementById('loading-spinner');
+        const resultContainer = document.getElementById('result-container');
+        const shortUrlResult = document.getElementById('short-url-result');
+        const copyBtn = document.getElementById('copy-btn');
+        const errorMsg = document.getElementById('error-msg');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault(); // Prevent page reload
+            
+            // Reset UI states
+            errorMsg.classList.add('d-none');
+            resultContainer.style.display = 'none';
+            submitBtn.disabled = true;
+            spinner.classList.remove('d-none');
+
+            const longUrl = urlInput.value.trim();
+
+            try {
+                // Call your Go Backend
+                const response = await fetch('http://localhost:8080/shorten', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: longUrl })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}: Please try again.`);
+                }
+
+                const data = await response.json();
+                
+                // Show the result
+                shortUrlResult.value = data.short_url;
+                resultContainer.style.display = 'block';
+                urlInput.value = ''; // Clear input
+
+            } catch (error) {
+                // Show error message
+                errorMsg.textContent = error.message === 'Failed to fetch' 
+                    ? 'Cannot connect to server. Is your Go API running?' 
+                    : error.message;
+                errorMsg.classList.remove('d-none');
+            } finally {
+                // Restore button state
+                submitBtn.disabled = false;
+                spinner.classList.add('d-none');
+            }
+        });
+
+        // --- Copy to Clipboard Logic ---
+        copyBtn.addEventListener('click', () => {
+            shortUrlResult.select();
+            document.execCommand('copy');
+            
+            // Visual feedback
+            const originalHtml = copyBtn.innerHTML;
+            copyBtn.innerHTML = '<i class="fa-solid fa-check text-success"></i>';
+            setTimeout(() => {
+                copyBtn.innerHTML = originalHtml;
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
