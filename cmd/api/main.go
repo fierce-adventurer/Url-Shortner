@@ -73,7 +73,7 @@ func rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 // @title URL Shortener API
 // @version 1.0
 // @description A fast, vanilla Go URL shortener using Postgres and Redis.
-// @host localhost:8080
+// @host https://url-shortner-kaqd.onrender.com
 // @BasePath /
 func main() {
 	counter = uint64(time.Now().Unix())
