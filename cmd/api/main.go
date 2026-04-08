@@ -83,7 +83,7 @@ func main() {
 
 	dbURL := os.Getenv("DATABASE_URL")
 	redisURL := os.Getenv("REDIS_URL")
-	baseURL := os.Getenv("BASE_URL")
+	baseURL = os.Getenv("BASE_URL")
 
 	if dbURL == "" || redisURL == "" {
 		log.Fatal("DATABASE_URL and REDIS_URL must be set")
