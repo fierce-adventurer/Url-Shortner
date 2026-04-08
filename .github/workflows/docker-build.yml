@@ -1,0 +1,33 @@
+name: CI - Docker Build
+
+# 1. Triggers: When should this pipeline run?
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Download your code into the GitHub runner
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Docker's modern Buildx engine (much faster)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Step 3: Attempt to build the Dockerfile
+      - name: Build the Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false # We set this to false because Render handles our deployment
+          tags: go-url-shortener:latest
+          # Pro-Tip: This uses GitHub's cache to make future builds lightning fast!
+          cache-from: type=gha
+          cache-to: type=gha,mode=max1
